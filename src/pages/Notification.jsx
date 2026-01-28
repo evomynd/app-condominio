@@ -58,11 +58,15 @@ const Notification = () => {
 
       const unitData = snapshot.docs[0].data();
 
+      console.log('Tentando buscar foto com ID:', pkg.local_photo_id);
+
       // Get photo from IndexedDB
       const photoBlob = await getPhoto(pkg.local_photo_id);
       
+      console.log('Foto recuperada:', photoBlob ? photoBlob.size + ' bytes' : 'null');
+      
       if (!photoBlob) {
-        alert('Foto não encontrada. Verifique o armazenamento local.');
+        alert('Foto não encontrada. Verifique o armazenamento local.\nID da foto: ' + pkg.local_photo_id);
         setSending(null);
         return;
       }

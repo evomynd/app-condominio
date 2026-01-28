@@ -136,8 +136,16 @@ const Entry = () => {
       const response = await fetch(capturedImage);
       const blob = await response.blob();
 
+      console.log('Blob criado:', blob.size, 'bytes');
+
       // Save photo to IndexedDB
       const photoId = await savePhoto(blob, null);
+      
+      console.log('Foto salva com ID:', photoId);
+
+      if (!photoId) {
+        throw new Error('Falha ao salvar foto no IndexedDB');
+      }
 
       // Save package to Firestore
       const packageData = {
