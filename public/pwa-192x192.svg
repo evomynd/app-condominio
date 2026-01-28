@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" fill="#1e40af"/>
+  <path d="M96 48L64 80V128H80V112H112V128H128V80L96 48ZM112 96H80V84L96 68L112 84V96Z" fill="white"/>
+  <text x="96" y="170" font-family="Arial, sans-serif" font-size="28" font-weight="bold" text-anchor="middle" fill="white">ENCOMENDAS</text>
+</svg>
