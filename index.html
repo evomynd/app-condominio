@@ -8,6 +8,16 @@
     <meta name="description" content="Sistema PWA para gestão de encomendas em condomínios" />
     <link rel="apple-touch-icon" href="/pwa-192x192.svg" />
     <title>Gestão de Encomendas</title>
+    <script>
+      // Handle GitHub Pages SPA redirect
+      (function() {
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect');
+        if (redirect) {
+          history.replaceState(null, '', '/app-condominio' + redirect);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Pages
@@ -18,7 +18,7 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <AuthProvider>
-      <HashRouter>
+      <BrowserRouter basename="/app-condominio">
         <Routes>
           <Route path="/login" element={<Login />} />
           
@@ -34,7 +34,7 @@ function App() {
             <Route path="admin" element={<Admin />} />
           </Route>
         </Routes>
-      </HashRouter>
+      </BrowserRouter>
     </AuthProvider>
   );
 }
