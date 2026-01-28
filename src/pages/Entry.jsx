@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import QrScanner from 'react-qr-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, X, Check, RotateCcw, Home, QrCode, Keyboard } from 'lucide-react';
 import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -20,6 +20,42 @@ const Entry = () => {
   
   const webcamRef = useRef(null);
   const qrScannerRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
+
+  // Initialize QR Scanner
+  useEffect(() => {
+    if (step === 'scan' && scanMode === 'qr') {
+      const qrCodeScanner = new Html5Qrcode("qr-reader");
+      html5QrCodeRef.current = qrCodeScanner;
+
+      qrCodeScanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 }
+        },
+        (decodedText) => {
+          setTrackingCode(decodedText);
+          qrCodeScanner.stop();
+          setScanMode(null);
+          setStep('unit');
+        },
+        (errorMessage) => {
+          // Silent error handling
+        }
+      ).catch((err) => {
+        console.error("Error starting QR scanner:", err);
+        alert("Erro ao acessar câmera. Tente entrada manual.");
+        setScanMode(null);
+      });
+
+      return () => {
+        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+          html5QrCodeRef.current.stop().catch(() => {});
+        }
+      };
+    }
+  }, [step, scanMode]);
 
   // Search units
   const searchUnits = async (searchTerm) => {
@@ -152,18 +188,20 @@ const Entry = () => {
       <div className="p-4 space-y-4">
         <h2 className="text-2xl font-bold text-gray-800">Escanear Código</h2>
         <div className="card">
-          <QrScanner
-            ref={qrScannerRef}
-            delay={300}
-            onError={handleQrError}
-            onScan={handleQrScan}
-            style={{ width: '100%' }}
-            constraints={{
-              video: { facingMode: 'environment' }
-            }}
-          />
+          <div id="qr-reader" style={{ width: '100%' }}></div>
+          <p className="text-center text-gray-600 mt-4">
+            Aponte a câmera para o QR Code ou Código de Barras
+          </p>
         </div>
-        <button onClick={() => setScanMode(null)} className="w-full btn-secondary">
+        <button 
+          onClick={() => {
+            if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+              html5QrCodeRef.current.stop();
+            }
+            setScanMode(null);
+          }} 
+          className="w-full btn-secondary"
+        >
           <X size={20} className="inline mr-2" />
           Cancelar
         </button>
