@@ -93,11 +93,27 @@ const Entry = () => {
     setShowCamera(true);
   };
 
+  const handleFileCapture = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCapturedImage(reader.result);
+        setStep('type');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const capture = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    setCapturedImage(imageSrc);
-    setShowCamera(false);
-    setStep('type');
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setCapturedImage(imageSrc);
+        setShowCamera(false);
+        setStep('type');
+      }
+    }
   }, [webcamRef]);
 
   const retakePhoto = () => {
@@ -328,11 +344,27 @@ const Entry = () => {
           <p className="text-gray-700 font-medium">
             Apto: <span className="text-blue-600">{selectedUnit?.id}</span>
           </p>
-          <button onClick={openCamera} className="w-full btn-primary">
+          
+          {/* Native camera input for mobile */}
+          <label className="w-full btn-primary cursor-pointer block text-center">
             <Camera size={20} className="inline mr-2" />
             Tirar Foto da Encomenda
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileCapture}
+              className="hidden"
+            />
+          </label>
+          
+          {/* Fallback to webcam (for desktop) */}
+          <button onClick={openCamera} className="w-full btn-secondary">
+            <Camera size={20} className="inline mr-2" />
+            Usar Webcam (Desktop)
           </button>
-          <button onClick={() => setStep('unit')} className="w-full btn-secondary">
+          
+          <button onClick={() => setStep('unit')} className="w-full bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg">
             Voltar
           </button>
         </div>
