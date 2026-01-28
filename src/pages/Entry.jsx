@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, X, Check, RotateCcw, Home } from 'lucide-react';
+import QrScanner from 'react-qr-scanner';
+import { Camera, X, Check, RotateCcw, Home, QrCode, Keyboard } from 'lucide-react';
 import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { savePhoto } from '../config/dexie';
 
 const Entry = () => {
-  const [step, setStep] = useState('tracking'); // tracking, unit, photo, type, decision
+  const [step, setStep] = useState('scan'); // scan, tracking, unit, photo, type, decision
+  const [scanMode, setScanMode] = useState(null); // 'qr' or 'manual'
   const [trackingCode, setTrackingCode] = useState('');
   const [unitId, setUnitId] = useState('');
   const [units, setUnits] = useState([]);
@@ -15,9 +17,9 @@ const Entry = () => {
   const [capturedImage, setCapturedImage] = useState(null);
   const [packageType, setPackageType] = useState('normal');
   const [loading, setLoading] = useState(false);
-  const [lastUnit, setLastUnit] = useState('');
   
   const webcamRef = useRef(null);
+  const qrScannerRef = useRef(null);
 
   // Search units
   const searchUnits = async (searchTerm) => {
@@ -101,9 +103,6 @@ const Entry = () => {
       };
 
       await addDoc(collection(db, 'packages'), packageData);
-
-      // Save last unit for quick repeat
-      setLastUnit(selectedUnit.id);
       
       // Show decision screen
       setStep('decision');
@@ -117,31 +116,60 @@ const Entry = () => {
 
   // Decision handlers
   const repeatSameUnit = () => {
+    // Keep selectedUnit and unitId, reset only tracking and photo
     setTrackingCode('');
     setCapturedImage(null);
     setPackageType('normal');
-    setStep('tracking');
-    // Keep selectedUnit and unitId
+    setScanMode(null);
+    setStep('scan');
   };
 
   const newUnit = () => {
+    // Reset everything
     setTrackingCode('');
     setUnitId('');
     setSelectedUnit(null);
     setCapturedImage(null);
     setPackageType('normal');
-    setStep('tracking');
+    setScanMode(null);
+    setStep('scan');
   };
 
   const finish = () => {
+    // Reset everything
     setTrackingCode('');
     setUnitId('');
     setSelectedUnit(null);
     setCapturedImage(null);
     setPackageType('normal');
-    setLastUnit('');
-    setStep('tracking');
+    setScanMode(null);
+    setStep('scan');
   };
+
+  // Render QR Scanner
+  if (step === 'scan' && scanMode === 'qr') {
+    return (
+      <div className="p-4 space-y-4">
+        <h2 className="text-2xl font-bold text-gray-800">Escanear Código</h2>
+        <div className="card">
+          <QrScanner
+            ref={qrScannerRef}
+            delay={300}
+            onError={handleQrError}
+            onScan={handleQrScan}
+            style={{ width: '100%' }}
+            constraints={{
+              video: { facingMode: 'environment' }
+            }}
+          />
+        </div>
+        <button onClick={() => setScanMode(null)} className="w-full btn-secondary">
+          <X size={20} className="inline mr-2" />
+          Cancelar
+        </button>
+      </div>
+    );
+  }
 
   // Render based on step
   if (step === 'decision') {
@@ -174,8 +202,22 @@ const Entry = () => {
     <div className="p-4 space-y-4">
       <h2 className="text-2xl font-bold text-gray-800">Registrar Encomenda</h2>
 
-      {/* Step 1: Tracking Code */}
-      {step === 'tracking' && (
+      {/* Step 0: Scan mode selection */}
+      {step === 'scan' && !scanMode && (
+        <div className="space-y-4">
+          <button onClick={() => setScanMode('qr')} className="w-full btn-primary py-8">
+            <QrCode size={48} className="mx-auto mb-2" />
+            <span className="text-lg">Escanear QR Code / Código de Barras</span>
+          </button>
+          <button onClick={() => { setScanMode('manual'); setStep('tracking'); }} className="w-full btn-secondary py-8">
+            <Keyboard size={48} className="mx-auto mb-2" />
+            <span className="text-lg">Entrada Manual</span>
+          </button>
+        </div>
+      )}
+
+      {/* Step 1: Tracking Code (Manual) */}
+      {step === 'tracking' && scanMode === 'manual' && (
         <div className="card space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

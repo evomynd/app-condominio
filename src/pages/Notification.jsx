@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { getPhoto, blobToFile } from '../config/dexie';
 import { Send, Check, AlertCircle } from 'lucide-react';
@@ -20,14 +20,18 @@ const Notification = () => {
       const packagesRef = collection(db, 'packages');
       const q = query(
         packagesRef,
-        where('status', '==', 'pending_notification'),
-        orderBy('created_at', 'desc')
+        where('status', '==', 'pending_notification')
       );
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+      // Sort manually by created_at (descending)
+      data.sort((a, b) => {
+        if (!a.created_at || !b.created_at) return 0;
+        return b.created_at.toMillis() - a.created_at.toMillis();
+      });
       setPackages(data);
     } catch (error) {
       console.error('Error loading notifications:', error);
