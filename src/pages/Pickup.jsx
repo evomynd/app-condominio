@@ -48,36 +48,31 @@ const Pickup = () => {
         return;
       }
 
-      // Load photos
-      console.log('Carregando fotos...');
-      const photoPromises = data.map(async (pkg) => {
+      // Show results immediately
+      setPackages(data);
+      setStep('checkout');
+      setLoading(false);
+
+      // Load photos in background
+      console.log('Carregando fotos em background...');
+      const photosMap = {};
+      
+      for (const pkg of data) {
         try {
           const blob = await getPhoto(pkg.local_photo_id);
           if (blob) {
-            return { id: pkg.id, url: URL.createObjectURL(blob) };
+            photosMap[pkg.id] = URL.createObjectURL(blob);
+            setPhotos(prev => ({ ...prev, [pkg.id]: URL.createObjectURL(blob) }));
           }
-          return { id: pkg.id, url: null };
         } catch (err) {
           console.error('Erro ao carregar foto:', pkg.local_photo_id, err);
-          return { id: pkg.id, url: null };
         }
-      });
-
-      const loadedPhotos = await Promise.all(photoPromises);
-      const photosMap = {};
-      loadedPhotos.forEach(p => {
-        photosMap[p.id] = p.url;
-      });
+      }
 
       console.log('Fotos carregadas:', Object.keys(photosMap).length);
-
-      setPhotos(photosMap);
-      setPackages(data);
-      setStep('checkout');
     } catch (error) {
       console.error('Error searching packages:', error);
       alert('Erro ao buscar encomendas: ' + error.message);
-    } finally {
       setLoading(false);
     }
   };
