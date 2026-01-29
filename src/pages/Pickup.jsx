@@ -162,20 +162,47 @@ const Pickup = () => {
   };
 
   if (showSignature) {
+    const selectedPhotos = selectedPackages.map(pkgId => {
+      const pkg = packages.find(p => p.id === pkgId);
+      return { id: pkgId, url: photos[pkgId], code: pkg?.tracking_code };
+    }).filter(p => p.url);
+
     return (
       <div className="p-4 space-y-4">
-        <h2 className="text-2xl font-bold text-gray-800">Assinatura</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Conferir e Assinar</h2>
 
         <div className="card space-y-4">
           <p className="text-gray-700">
             <strong>{recipientName}</strong> está retirando <strong>{selectedPackages.length}</strong> encomenda(s)
           </p>
 
+          {/* Photo Grid */}
+          {selectedPhotos.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Fotos das Encomendas:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {selectedPhotos.map(photo => (
+                  <div key={photo.id} className="relative">
+                    <img 
+                      src={photo.url} 
+                      alt={photo.code}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                    />
+                    <span className="absolute bottom-1 left-1 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                      {photo.code}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white">
+            <p className="text-sm text-gray-600 p-2 bg-gray-50 border-b">Assine abaixo:</p>
             <SignatureCanvas
               ref={signatureRef}
               canvasProps={{
-                className: 'w-full h-64'
+                className: 'w-full h-48'
               }}
             />
           </div>
