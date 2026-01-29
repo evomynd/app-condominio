@@ -25,6 +25,8 @@ const Pickup = () => {
     }
 
     setLoading(true);
+    console.log('Buscando encomendas para apartamento:', searchTerm);
+    
     try {
       const packagesRef = collection(db, 'packages');
       const q = query(
@@ -38,13 +40,27 @@ const Pickup = () => {
         ...doc.data()
       }));
 
+      console.log('Encomendas encontradas:', data.length);
+
+      if (data.length === 0) {
+        alert('Nenhuma encomenda pendente para este apartamento');
+        setLoading(false);
+        return;
+      }
+
       // Load photos
+      console.log('Carregando fotos...');
       const photoPromises = data.map(async (pkg) => {
-        const blob = await getPhoto(pkg.local_photo_id);
-        if (blob) {
-          return { id: pkg.id, url: URL.createObjectURL(blob) };
+        try {
+          const blob = await getPhoto(pkg.local_photo_id);
+          if (blob) {
+            return { id: pkg.id, url: URL.createObjectURL(blob) };
+          }
+          return { id: pkg.id, url: null };
+        } catch (err) {
+          console.error('Erro ao carregar foto:', pkg.local_photo_id, err);
+          return { id: pkg.id, url: null };
         }
-        return { id: pkg.id, url: null };
       });
 
       const loadedPhotos = await Promise.all(photoPromises);
@@ -53,17 +69,14 @@ const Pickup = () => {
         photosMap[p.id] = p.url;
       });
 
+      console.log('Fotos carregadas:', Object.keys(photosMap).length);
+
       setPhotos(photosMap);
       setPackages(data);
-
-      if (data.length === 0) {
-        alert('Nenhuma encomenda pendente para este apartamento');
-      } else {
-        setStep('checkout');
-      }
+      setStep('checkout');
     } catch (error) {
       console.error('Error searching packages:', error);
-      alert('Erro ao buscar encomendas');
+      alert('Erro ao buscar encomendas: ' + error.message);
     } finally {
       setLoading(false);
     }
