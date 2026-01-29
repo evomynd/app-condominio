@@ -301,7 +301,7 @@ const Pickup = () => {
                   <div className="flex-1">
                     <p className="font-semibold text-gray-800">{pkg.tracking_code}</p>
                     <p className="text-sm text-gray-600">
-                      {pkg.created_at && format(pkg.created_at.toDate(), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
+                      {pkg.created_at && format(pkg.created_at.toDate(), "dd/MM/yy 'às' HH:mm")}
                     </p>
                     <p className="text-xs text-gray-500">
                       📍 {pkg.location === 'setor' ? 'Setor' : 'Portaria'}
