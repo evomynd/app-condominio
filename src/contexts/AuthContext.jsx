@@ -23,10 +23,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Timeout de segurança - mostra a página após 2 segundos mesmo sem resposta do Firebase
+    // Timeout de segurança - mostra a página após 500ms mesmo sem resposta do Firebase
     const timeoutId = setTimeout(() => {
       setLoading(false);
-    }, 2000);
+    }, 500);
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       clearTimeout(timeoutId);
