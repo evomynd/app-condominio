@@ -1,13 +1,15 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+﻿import { useState, useRef, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, X, Check, RotateCcw, Home, QrCode, Keyboard } from 'lucide-react';
+import { Camera, X, Check, RotateCcw, Home, QrCode, Keyboard, Package } from 'lucide-react';
 import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { savePhoto } from '../config/dexie';
+import { db as firebaseDb } from '../config/firebase';
+import { db, savePhoto } from '../config/dexie';
 
 const Entry = () => {
-  const [step, setStep] = useState('scan'); // scan, tracking, unit, photo, type, decision
+  const navigate = useNavigate();
+  const [step, setStep] = useState('scan'); // scan, tracking, unit, type, photo (only for retirar-portaria), decision
   const [scanMode, setScanMode] = useState(null); // 'qr' or 'manual'
   const [trackingCode, setTrackingCode] = useState('');
   const [unitId, setUnitId] = useState('');
@@ -15,7 +17,7 @@ const Entry = () => {
   const [selectedUnit, setSelectedUnit] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
-  const [packageType, setPackageType] = useState('normal');
+  const [packageType, setPackageType] = useState('comum'); // comum ou retirar-portaria
   const [loading, setLoading] = useState(false);
   
   const webcamRef = useRef(null);
@@ -65,7 +67,7 @@ const Entry = () => {
     }
 
     try {
-      const unitsRef = collection(db, 'units');
+      const unitsRef = collection(firebaseDb, 'units');
       const q = query(unitsRef, where('id', '>=', searchTerm), where('id', '<=', searchTerm + '\uf8ff'));
       const snapshot = await getDocs(q);
       const results = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
@@ -85,10 +87,10 @@ const Entry = () => {
     setSelectedUnit(unit);
     setUnitId(unit.id);
     setUnits([]);
-    setStep('photo');
+    setStep('type'); // Agora pula direto para seleção de tipo
   };
 
-  // Camera functions
+  // Camera functions (só para retirar-portaria)
   const openCamera = () => {
     setShowCamera(true);
   };
@@ -99,7 +101,7 @@ const Entry = () => {
       const reader = new FileReader();
       reader.onloadend = () => {
         setCapturedImage(reader.result);
-        setStep('type');
+        savePackageWithPhoto(reader.result);
       };
       reader.readAsDataURL(file);
     }
@@ -111,20 +113,19 @@ const Entry = () => {
       if (imageSrc) {
         setCapturedImage(imageSrc);
         setShowCamera(false);
-        setStep('type');
+        savePackageWithPhoto(imageSrc);
       }
     }
-  }, [webcamRef]);
+  }, [webcamRef, trackingCode, selectedUnit]);
 
   const retakePhoto = () => {
     setCapturedImage(null);
     setShowCamera(true);
-    setStep('photo');
   };
 
-  // Save package
-  const savePackage = async () => {
-    if (!trackingCode || !selectedUnit || !capturedImage) {
+  // Save package WITHOUT photo (for tipo comum)
+  const savePackageComum = async () => {
+    if (!trackingCode || !selectedUnit) {
       alert('Preencha todos os campos obrigatórios');
       return;
     }
@@ -132,40 +133,24 @@ const Entry = () => {
     setLoading(true);
 
     try {
-      // Convert base64 to Blob
-      const response = await fetch(capturedImage);
-      const blob = await response.blob();
-
-      console.log('Blob criado:', blob.size, 'bytes');
-
-      // Save photo to IndexedDB
-      const photoId = await savePhoto(blob, null);
+      const packageId = `pkg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      console.log('Foto salva com ID:', photoId);
+      // Save to local IndexedDB first
+      await db.packages.add({
+        id: packageId,
+        code: trackingCode,
+        apartment: selectedUnit.id,
+        residentName: selectedUnit.residents?.[0] || '',
+        type: 'comum',
+        status: 'aguardando_triagem',
+        photoId: null,
+        createdAt: new Date(),
+        notifiedAt: null,
+        pickedUpAt: null
+      });
 
-      if (!photoId) {
-        throw new Error('Falha ao salvar foto no IndexedDB');
-      }
-
-      // Save package to Firestore
-      const packageData = {
-        tracking_code: trackingCode,
-        unit_id: selectedUnit.id,
-        unit_block: selectedUnit.block || '',
-        status: 'pending_notification',
-        type: packageType,
-        location: packageType === 'normal' ? 'setor' : 'portaria',
-        local_photo_id: photoId,
-        created_at: serverTimestamp(),
-        retired_at: null,
-        retired_by: null,
-        signature_base64: null
-      };
-
-      await addDoc(collection(db, 'packages'), packageData);
-      
-      // Show decision screen
-      setStep('decision');
+      alert('Encomenda registrada! Aguardando triagem.');
+      finish();
     } catch (error) {
       console.error('Error saving package:', error);
       alert('Erro ao salvar encomenda. Tente novamente.');
@@ -174,12 +159,80 @@ const Entry = () => {
     }
   };
 
-  // Decision handlers
+  // Save package WITH photo (for tipo retirar-portaria)
+  const savePackageWithPhoto = async (imageData) => {
+    if (!trackingCode || !selectedUnit || !imageData) {
+      alert('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Convert base64 to Blob
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+
+      // Save photo to IndexedDB
+      const photoId = await savePhoto(blob, null);
+      
+      if (!photoId) {
+        throw new Error('Falha ao salvar foto no IndexedDB');
+      }
+
+      const packageId = `pkg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Save to local IndexedDB first
+      await db.packages.add({
+        id: packageId,
+        code: trackingCode,
+        apartment: selectedUnit.id,
+        residentName: selectedUnit.residents?.[0] || '',
+        type: 'retirar-portaria',
+        status: 'pending_notification',
+        photoId: photoId,
+        createdAt: new Date(),
+        notifiedAt: null,
+        pickedUpAt: null
+      });
+
+      // Save package to Firestore
+      const packageData = {
+        tracking_code: trackingCode,
+        unit_id: selectedUnit.id,
+        unit_block: selectedUnit.block || '',
+        status: 'pending_notification',
+        type: 'retirar-portaria',
+        location: 'portaria',
+        local_photo_id: photoId,
+        created_at: serverTimestamp(),
+        retired_at: null,
+        retired_by: null,
+        signature_base64: null
+      };
+
+      await addDoc(collection(firebaseDb, 'packages'), packageData);
+      
+      alert('Encomenda registrada! Redirecionando para notificação...');
+      
+      // Redireciona para a tela de notificação
+      setTimeout(() => {
+        navigate('/notification');
+      }, 1500);
+    } catch (error) {
+      console.error('Error saving package:', error);
+      alert('Erro ao salvar encomenda. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Decision handlers (apenas para tipo comum)
   const repeatSameUnit = () => {
-    // Keep selectedUnit and unitId, reset only tracking and photo
+    // Keep selectedUnit and unitId, reset only tracking
     setTrackingCode('');
     setCapturedImage(null);
-    setPackageType('normal');
+    setPackageType('comum');
     setScanMode(null);
     setStep('scan');
   };
@@ -190,7 +243,7 @@ const Entry = () => {
     setUnitId('');
     setSelectedUnit(null);
     setCapturedImage(null);
-    setPackageType('normal');
+    setPackageType('comum');
     setScanMode(null);
     setStep('scan');
   };
@@ -201,7 +254,7 @@ const Entry = () => {
     setUnitId('');
     setSelectedUnit(null);
     setCapturedImage(null);
-    setPackageType('normal');
+    setPackageType('comum');
     setScanMode(null);
     setStep('scan');
   };
@@ -346,11 +399,71 @@ const Entry = () => {
         </div>
       )}
 
-      {/* Step 3: Photo */}
+      {/* Step 3: Type Selection */}
+      {step === 'type' && (
+        <div className="card space-y-4">
+          <p className="text-gray-700 font-medium">
+            Código: <span className="text-blue-600">{trackingCode}</span>
+          </p>
+          <p className="text-gray-700 font-medium">
+            Apto: <span className="text-blue-600">{selectedUnit?.id}</span>
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Tipo de Encomenda
+            </label>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setPackageType('comum');
+                  savePackageComum();
+                }}
+                disabled={loading}
+                className="w-full p-4 rounded-lg border-2 border-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Package size={24} className="text-blue-600" />
+                  <div className="text-left">
+                    <p className="font-semibold text-blue-600">Comum</p>
+                    <p className="text-sm text-gray-600">Vai para triagem</p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setPackageType('retirar-portaria');
+                  setStep('photo');
+                }}
+                disabled={loading}
+                className="w-full p-4 rounded-lg border-2 border-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Camera size={24} className="text-red-600" />
+                  <div className="text-left">
+                    <p className="font-semibold text-red-600">Retirar na Portaria</p>
+                    <p className="text-sm text-gray-600">Morador retira na portaria (tira foto)</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <button onClick={() => setStep('unit')} className="w-full bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg">
+            Voltar
+          </button>
+        </div>
+      )}
+
+      {/* Step 4: Photo (only for retirar-portaria) */}
       {step === 'photo' && !showCamera && !capturedImage && (
         <div className="card space-y-4">
           <p className="text-gray-700 font-medium">
             Apto: <span className="text-blue-600">{selectedUnit?.id}</span>
+          </p>
+          <p className="text-gray-700 font-medium">
+            Tipo: <span className="text-red-600">Retirar na Portaria</span>
           </p>
           
           {/* Native camera input for mobile */}
@@ -372,7 +485,7 @@ const Entry = () => {
             Usar Webcam (Desktop)
           </button>
           
-          <button onClick={() => setStep('unit')} className="w-full bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg">
+          <button onClick={() => setStep('type')} className="w-full bg-gray-500 text-white font-semibold py-3 px-6 rounded-lg">
             Voltar
           </button>
         </div>
@@ -402,6 +515,7 @@ const Entry = () => {
             <button
               onClick={capture}
               className="bg-white text-black p-6 rounded-full"
+              disabled={loading}
             >
               <Camera size={32} />
             </button>
@@ -409,61 +523,12 @@ const Entry = () => {
         </div>
       )}
 
-      {/* Step 4: Type Selection */}
-      {step === 'type' && capturedImage && (
-        <div className="card space-y-4">
-          <p className="text-gray-700 font-medium">
-            Apto: <span className="text-blue-600">{selectedUnit?.id}</span>
-          </p>
-
-          <div className="relative">
-            <img src={capturedImage} alt="Captured" className="w-full rounded-lg" />
-            <button
-              onClick={retakePhoto}
-              className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full shadow-lg"
-            >
-              <RotateCcw size={20} />
-            </button>
+      {/* Loading indicator */}
+      {loading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg">
+            <p className="text-lg font-semibold">Salvando encomenda...</p>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tipo de Encomenda
-            </label>
-            <div className="space-y-2">
-              <button
-                onClick={() => setPackageType('normal')}
-                className={`w-full p-4 rounded-lg border-2 transition-colors ${
-                  packageType === 'normal'
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-300 bg-white'
-                }`}
-              >
-                <p className="font-semibold">Normal (Setor)</p>
-                <p className="text-sm text-gray-600">Encomenda comum</p>
-              </button>
-
-              <button
-                onClick={() => setPackageType('perecivel')}
-                className={`w-full p-4 rounded-lg border-2 transition-colors ${
-                  packageType === 'perecivel'
-                    ? 'border-red-600 bg-red-50'
-                    : 'border-gray-300 bg-white'
-                }`}
-              >
-                <p className="font-semibold text-red-600">Perecível / Grande (Portaria)</p>
-                <p className="text-sm text-gray-600">Requer atenção especial</p>
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={savePackage}
-            disabled={loading}
-            className="w-full btn-success disabled:opacity-50"
-          >
-            {loading ? 'Salvando...' : 'Confirmar Registro'}
-          </button>
         </div>
       )}
     </div>
@@ -471,3 +536,5 @@ const Entry = () => {
 };
 
 export default Entry;
+
+

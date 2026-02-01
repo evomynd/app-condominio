@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { getPhoto, blobToFile } from '../config/dexie';
@@ -53,7 +53,7 @@ const Notification = () => {
       setGroupedPackages(groupedArray);
     } catch (error) {
       console.error('Error loading notifications:', error);
-      alert('Erro ao carregar notificações');
+      alert('Erro ao carregar notificaÃ§Ãµes');
     } finally {
       setLoading(false);
     }
@@ -69,7 +69,7 @@ const Notification = () => {
       const snapshot = await getDocs(q);
       
       if (snapshot.empty) {
-        alert('Unidade não encontrada no cadastro');
+        alert('Unidade nÃ£o encontrada no cadastro');
         setSending(null);
         return;
       }
@@ -96,50 +96,102 @@ const Notification = () => {
         return;
       }
 
-      // Prepare message
       const count = group.packages.length;
-      const message = `🏢 *${count > 1 ? count + ' Encomendas Chegaram!' : 'Encomenda Chegou!'}*\n\n` +
-        `📦 Apto: ${group.unit_id}${group.unit_block ? ` - Bloco ${group.unit_block}` : ''}\n` +
-        `📍 Local: ${group.packages[0].location === 'setor' ? 'Setor de Encomendas' : 'Portaria'}\n\n` +
-        group.packages.map((pkg, idx) => 
-          `${count > 1 ? `${idx + 1}. ` : ''}🏷️ ${pkg.tracking_code}${pkg.type === 'perecivel' ? ' ⚠️ PERECÍVEL' : ''}`
-        ).join('\n');
 
       // Check if Web Share API is available
       if (navigator.share && navigator.canShare && navigator.canShare({ files: photoFiles })) {
-        await navigator.share({
-          title: count > 1 ? 'Novas Encomendas' : 'Nova Encomenda',
-          text: message,
-          files: photoFiles
-        });
-
-        // Ask for confirmation
-        const confirmed = window.confirm('A notificação foi enviada com sucesso?');
         
-        if (confirmed) {
-          // Update all packages status
-          for (const pkg of group.packages) {
-            await updateDoc(doc(db, 'packages', pkg.id), {
+        if (count > 1) {
+          // MÃºltiplas encomendas: mensagem completa na primeira, cÃ³digo nas demais
+          const firstMessage = `ðŸ¢ *${count} Encomendas Chegaram!*\n\n` +
+            `ðŸ“¦ Apto: ${group.unit_id}${group.unit_block ? ` - Bloco ${group.unit_block}` : ''}\n` +
+            `ðŸ“ Local: ${group.packages[0].location === 'setor' ? 'Setor de Encomendas' : 'Portaria'}\n\n` +
+            group.packages.map((pkg, idx) =>
+              `${idx + 1}. ðŸ·ï¸ ${pkg.tracking_code}${pkg.type === 'perecivel' ? ' âš ï¸ PORTARIAVEL' : ''}`
+            ).join('\n');
+
+          // Enviar primeira foto com mensagem completa
+          await navigator.share({
+            title: 'Novas Encomendas',
+            text: firstMessage,
+            files: [photoFiles[0]]
+          });
+
+          // Aguardar processamento
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // Enviar demais fotos com apenas o cÃ³digo
+          for (let i = 1; i < photoFiles.length; i++) {
+            const pkg = group.packages[i];
+            const simpleMessage = `ðŸ·ï¸ ${pkg.tracking_code}${pkg.type === 'perecivel' ? ' âš ï¸ PORTARIAVEL' : ''}`;
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await navigator.share({
+              text: simpleMessage,
+              files: [photoFiles[i]]
+            });
+          }
+
+          // Ask for confirmation
+          const confirmed = window.confirm('Todas as notificaÃ§Ãµes foram enviadas com sucesso?');
+
+          if (confirmed) {
+            // Update all packages status
+            for (const pkg of group.packages) {
+              await updateDoc(doc(db, 'packages', pkg.id), {
+                status: 'pending_pickup',
+                notified_at: new Date()
+              });
+            }
+
+            alert('Status atualizado com sucesso!');
+            loadPendingNotifications();
+          }
+        } else {
+          // Apenas uma encomenda - comportamento original
+          const message = `ðŸ¢ *Encomenda Chegou!*\n\n` +
+            `ðŸ“¦ Apto: ${group.unit_id}${group.unit_block ? ` - Bloco ${group.unit_block}` : ''}\n` +
+            `ðŸ“ Local: ${group.packages[0].location === 'setor' ? 'Setor de Encomendas' : 'Portaria'}\n\n` +
+            `ðŸ·ï¸ ${group.packages[0].tracking_code}${group.packages[0].type === 'perecivel' ? ' âš ï¸ PORTARIAVEL' : ''}`;
+
+          await navigator.share({
+            title: 'Nova Encomenda',
+            text: message,
+            files: photoFiles
+          });
+
+          const confirmed = window.confirm('A notificaÃ§Ã£o foi enviada com sucesso?');
+
+          if (confirmed) {
+            await updateDoc(doc(db, 'packages', group.packages[0].id), {
               status: 'pending_pickup',
               notified_at: new Date()
             });
+
+            alert('Status atualizado com sucesso!');
+            loadPendingNotifications();
           }
-          
-          alert('Status atualizado com sucesso!');
-          loadPendingNotifications();
         }
       } else {
         // Fallback: Show phone and message
+        const message = `ðŸ¢ *${count > 1 ? count + ' Encomendas Chegaram!' : 'Encomenda Chegou!'}*\n\n` +
+          `ðŸ“¦ Apto: ${group.unit_id}${group.unit_block ? ` - Bloco ${group.unit_block}` : ''}\n` +
+          `ðŸ“ Local: ${group.packages[0].location === 'setor' ? 'Setor de Encomendas' : 'Portaria'}\n\n` +
+          group.packages.map((pkg, idx) =>
+            `${count > 1 ? `${idx + 1}. ` : ''}ðŸ·ï¸ ${pkg.tracking_code}${pkg.type === 'perecivel' ? ' âš ï¸ PORTARIAVEL' : ''}`
+          ).join('\n');
+        
         alert(
-          `Web Share não disponível.\n\n` +
-          `Telefone: ${unitData.phone || 'Não cadastrado'}\n\n` +
+          `Web Share nÃ£o disponÃ­vel.\n\n` +
+          `Telefone: ${unitData.phone || 'NÃ£o cadastrado'}\n\n` +
           `Mensagem:\n${message}`
         );
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('Error sharing:', error);
-        alert('Erro ao compartilhar. Verifique as permissões do navegador.');
+        alert('Erro ao compartilhar. Verifique as permissÃµes do navegador.');
       }
     } finally {
       setSending(null);
@@ -147,7 +199,7 @@ const Notification = () => {
   };
 
   const markAsNotified = async (group) => {
-    if (!window.confirm(`Confirmar que já notificou o morador do Apto ${group.unit_id}?`)) {
+    if (!window.confirm(`Confirmar que jÃ¡ notificou o morador do Apto ${group.unit_id}?`)) {
       return;
     }
 
@@ -181,7 +233,7 @@ const Notification = () => {
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Notificações Pendentes</h2>
+        <h2 className="text-2xl font-bold text-gray-800">NotificaÃ§Ãµes Pendentes</h2>
         <span className="status-notify">{totalPackages}</span>
       </div>
 
@@ -210,7 +262,7 @@ const Notification = () => {
                       <p key={pkg.id} className="text-xs text-gray-500">
                         {group.packages.length > 1 && `${idx + 1}. `}
                         {pkg.tracking_code}
-                        {pkg.type === 'perecivel' && ' ⚠️'}
+                        {pkg.type === 'perecivel' && ' âš ï¸'}
                       </p>
                     ))}
                   </div>
@@ -224,7 +276,7 @@ const Notification = () => {
 
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">
-                    📍 {group.packages[0].location === 'setor' ? 'Setor' : 'Portaria'}
+                    ðŸ“ {group.packages[0].location === 'setor' ? 'Setor' : 'Portaria'}
                   </span>
                   <span className="status-notify">A Notificar</span>
                 </div>
@@ -261,3 +313,5 @@ const Notification = () => {
 };
 
 export default Notification;
+
+

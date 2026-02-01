@@ -184,7 +184,7 @@ const Admin = () => {
     setUserLoading(true);
 
     try {
-      const result = await signUp(userFormData.email, userFormData.password, userFormData.name);
+      const result = await signUp(userFormData.email, userFormData.password, userFormData.name, userFormData.role);
       
       if (result.success) {
         setUserSuccess(true);
@@ -738,3 +738,4 @@ const Admin = () => {
 };
 
 export default Admin;
+

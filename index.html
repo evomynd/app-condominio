@@ -17,6 +17,15 @@
           history.replaceState(null, '', '/app-condominio' + redirect);
         }
       })();
+
+      // Check user role and hide admin button if necessary
+      const userRole = 'Porteiro'; // This should be dynamically set based on the logged-in user
+      const adminButton = document.getElementById('adminButton');
+      if (userRole === 'Porteiro' || userRole === 'Controlador') {
+        if (adminButton) {
+          adminButton.style.display = 'none';
+        }
+      }
     </script>
   </head>
   <body>

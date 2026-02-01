@@ -5,7 +5,8 @@ export const db = new Dexie('CondominioEncomendas');
 // Define schema
 db.version(1).stores({
   photos: 'id, packageId, timestamp, blob',
-  pendingSync: '++id, type, data, timestamp'
+  pendingSync: '++id, type, data, timestamp',
+  packages: 'id, code, apartment, residentName, type, status, photoId, createdAt, notifiedAt, pickedUpAt'
 });
 
 /**
